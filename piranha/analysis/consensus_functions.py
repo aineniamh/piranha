@@ -44,7 +44,8 @@ def find_variants(reference_seq,query_seq):
         # bases[1] == ref seq
         bases = [query_seq[i],reference_seq[i]]
         if bases[0] != bases[1]:
-            
+            print(i, bases)
+
             if bases[0] in non_amb and bases[1] in non_amb:
                 #if neither of them are ambiguous
                 snp = f"{i+1}:{bases[1]}{bases[0]}" # position-reference-query
@@ -94,48 +95,52 @@ def join_variant_files(header_fields,in_files,output):
                     fw.write(f"{l}\n")
 
 
-def get_variation_pcent(ref,fasta):
+def get_variation_pcent(ref,mapped_cns,fasta_reads):
     ref_record = SeqIO.read(ref,"fasta")
-    
-    #set up site counter, 0-based
+    cns_record = SeqIO.read(mapped_cns,"fasta")
+    #set up site counter, 1-based
     variant_sites = {}
+    ref_sites = {}
+    cns_sites = {}
+    total_sites = collections.Counter()
     for i in range(len(ref_record)):
-        variant_sites[i] = 0
+        variant_sites[i+1] = {"A":0,"T":0,"C":0,"G":0,"-":0,"N":0}
+        ref_sites[i+1] = ref_record.seq[i]
+        cns_sites[i+1] = cns_record.seq[i]
 
-    c = 0
-    for record in SeqIO.parse(fasta,"fasta"):
-        c +=1
-        index = 0
-        for pos in zip(str(record.seq),str(ref_record.seq)):
-            
-            if pos[0] != pos[1]:
-                variant_sites[index]+=1
-            index +=1
+    for record in SeqIO.parse(fasta_reads,"fasta"):
+        # for each read, get a count of each nucleotide at that point
+        for index in range(len(ref_record)):
+            total_sites[index+1] +=1
+            query_site = record.seq[index]
+            try:
+                variant_sites[index+1][query_site] +=1
+            except:
+                variant_sites[index+1]["N"] +=1 
 
-    variant_info = {}
-    for site in variant_sites:
-        variant_info[site] = collections.Counter()
-
-    for record in SeqIO.parse(fasta,"fasta"):
-        for site in variant_sites:
-            variant = str(record.seq)[site]
-            variant_info[site][variant]+=1
-
-    x = []
-    y = []
-    info = []
     variation_info = []
     for site in variant_sites:
-        
-        pcent_variants = round(100*(variant_sites[site]/c), 1)
-        x = site+1
-        y = pcent_variants
+        ref_var = ref_sites[site]
+        cns_var = cns_sites[site]
 
-        var_counts = variant_info[site]
-        site_data = {"Position":x,"Percentage":y}
-        for i in var_counts:
-            site_data[f"{i} reads"] = var_counts[i]
+        variant_counts = variant_sites[site]
+        total = total_sites[site]
+
+        if ref_var != cns_var:
+            cns_var_count = variant_counts[cns_var]
+            pcent_variant = round(100*(cns_var_count/total), 1)
+        else:
+            alt_count = 0
+            for var in variant_counts:
+                if var != ref_var:
+                    alt_count += variant_counts[var]
+            pcent_variant = round(100*(alt_count/total), 1)
         
+        site_data = {"Position":site,
+                    "Percentage":pcent_variant,
+                    "Reference":ref_var,
+                    "Called":cns_var,
+                    "Read counts":variant_counts}
         variation_info.append(site_data)
 
     return variation_info

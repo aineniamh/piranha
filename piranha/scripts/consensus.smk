@@ -148,24 +148,6 @@ rule sam_to_indels:
         """
 
 
-rule get_variation_info:
-    input:
-        expand(rules.files.params.reads, reference=REFERENCES),
-        expand(rules.sam_to_seq.output.fasta,reference=REFERENCES)
-    output:
-        json = os.path.join(config[KEY_TEMPDIR],"variation_info.json")
-    run:
-        # this is for making a figure
-        variation_dict = {}
-        for reference in REFERENCES:
-            ref = os.path.join(config[KEY_TEMPDIR],"reference_groups",f"{reference}.reference.fasta")
-            fasta = os.path.join(config[KEY_TEMPDIR],"reference_analysis",f"{reference}","pseudoaln.fasta")
-            
-            var_dict = get_variation_pcent(ref,fasta)
-            variation_dict[reference] = var_dict
-
-        with open(output.json, "w") as fw:
-            fw.write(json.dumps(variation_dict))
 
 rule join_cns_ref:
     input:
@@ -210,6 +192,45 @@ rule curate_variants:
             for var in masked:
                 site = int(var) + 1
                 fw.write(f"{params.reference},{site},{masked[var]}\n")
+
+rule align_clean_cns_to_reference:
+    input:
+        ref = rules.files.params.ref,
+        cns = rules.curate_variants.output.fasta
+    params:
+        sam = os.path.join(config[KEY_TEMPDIR],"reference_analysis","{reference}","mapped.final.sam")
+    output:
+        fasta = os.path.join(config[KEY_TEMPDIR],"reference_analysis","{reference}","aligned_clean_cns.fasta")
+    shell:
+        """
+        minimap2 -a -x asm20 --sam-hit-only --secondary=no -t  {workflow.cores} {input.ref:q} {input.cns} -o {params.sam:q} 
+        gofasta sam toMultiAlign \
+            -s {params.sam:q} \
+            -t {workflow.cores} \
+            --reference {input.ref:q} \
+            > '{output.fasta}'
+        """
+
+rule get_variation_info:
+    input:
+        expand(rules.align_clean_cns_to_reference.output.fasta, reference=REFERENCES),
+        expand(rules.files.params.reads, reference=REFERENCES),
+        expand(rules.sam_to_seq.output.fasta,reference=REFERENCES)
+    output:
+        json = os.path.join(config[KEY_TEMPDIR],"variation_info.json")
+    run:
+        # this is for making a figure
+        variation_dict = {}
+        for reference in REFERENCES:
+            ref = os.path.join(config[KEY_TEMPDIR],"reference_groups",f"{reference}.reference.fasta")
+            fasta = os.path.join(config[KEY_TEMPDIR],"reference_analysis",f"{reference}","pseudoaln.fasta")
+            cns = os.path.join(config[KEY_TEMPDIR],"reference_analysis",f"{reference}","aligned_clean_cns.fasta")
+            
+            var_dict = get_variation_pcent(ref,cns,fasta)
+            variation_dict[reference] = var_dict
+
+        with open(output.json, "w") as fw:
+            fw.write(json.dumps(variation_dict))
 
 rule gather_masked_variants:
     input:
