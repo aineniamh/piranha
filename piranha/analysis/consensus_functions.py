@@ -4,7 +4,7 @@ import collections
 from Bio import SeqIO
 import csv
 from itertools import groupby, count
-from cigar import Cigar
+# from cigar import Cigar
 
 from piranha.utils.config import *
 
@@ -94,68 +94,71 @@ def join_variant_files(header_fields,in_files,output):
                     l = l.rstrip("\n")
                     fw.write(f"{l}\n")
 
-def adjust_position(cs,primer_length):
+# def adjust_position(cs,primer_length):
 
-    # new cigar string
-    c = Cigar(cs)
-    items = list(c.items())
-    start_mask = items[0][0]
-    end_mask = items[-1][0]
+#     # new cigar string
+#     c = Cigar(cs)
+#     items = list(c.items())
+#     start_mask = items[0][0]
+#     end_mask = items[-1][0]
 
-    amended_start_mask = start_mask + primer_length
-    amended_end_mask = end_mask + primer_length
+#     amended_start_mask = start_mask + primer_length
+#     amended_end_mask = end_mask + primer_length
 
-    new_cigar = c.mask_left(amended_start_mask).mask_right(amended_end_mask)
+#     new_cigar = c.mask_left(amended_start_mask).mask_right(amended_end_mask)
 
-    return new_cigar.cigar
+#     return new_cigar.cigar
 
-def soft_mask_primer_sites(input_sam, output_sam, primer_length):
-    with open(output_sam, "w") as fw:
-        with open(input_sam,"r") as f:
-            for l in f:
-                l=l.rstrip("\n")
+# def soft_mask_primer_sites(input_sam, output_sam, primer_length):
+#     with open(output_sam, "w") as fw:
+#         with open(input_sam,"r") as f:
+#             for l in f:
+#                 l=l.rstrip("\n")
 
-                if not l.startswith("@"):
-                    tokens = l.split("\t")
-                    new_tokens = tokens
-                    new_tokens[5] = adjust_position(tokens[5],primer_length)
-                    new_l = "\t".join(new_tokens)
-                    fw.write(f"{new_l}\n")
-                else:
-                    fw.write(f"{l}\n")
+#                 if not l.startswith("@"):
+#                     tokens = l.split("\t")
+#                     new_tokens = tokens
+#                     new_tokens[5] = adjust_position(tokens[5],primer_length)
+#                     new_l = "\t".join(new_tokens)
+#                     fw.write(f"{new_l}\n")
+#                 else:
+#                     fw.write(f"{l}\n")
 
 
 
-def get_variation_pcent(ref,fasta):
+def get_variation_pcent(ref,stats):
     ref_record = SeqIO.read(ref,KEY_FASTA)
     
     #set up site counter, 0-based
-    variant_sites = {}
-    for i in range(len(ref_record)):
-        variant_sites[i] = 0
+    variant_sites = collections.Counter()
 
     c = 0
     for record in SeqIO.parse(fasta,KEY_FASTA):
         c +=1
-        index = 0
+        index = 1
         for pos in zip(str(record.seq),str(ref_record.seq)):
             
             if pos[0] != pos[1]:
                 variant_sites[index]+=1
+
             index +=1
 
+    
+    std_list = ["A","T","C","G","-"]
     variant_info = {}
     for site in variant_sites:
         variant_info[site] = {}
-        for base in ["A","T","C","G","-"]:
+        for base in std_list:
             variant_info[site][base] = 0
 
     for record in SeqIO.parse(fasta,KEY_FASTA):
         for site in variant_sites:
-            variant = str(record.seq)[site]
-            if variant not in variant_info[site]:
-                variant_info[site][variant]=0
-            variant_info[site][variant]+=1
+
+            variant = str(record.seq)[site-1]
+            if variant not in std_list:
+                variant_info[site]["N"]+=1
+            else:
+                variant_info[site][variant]+=1
 
     x = []
     y = []
@@ -164,7 +167,7 @@ def get_variation_pcent(ref,fasta):
     for site in variant_sites:
         
         pcent_variants = round(100*(variant_sites[site]/c), 1)
-        x = site+1
+        x = site
         y = pcent_variants
 
         var_counts = variant_info[site]

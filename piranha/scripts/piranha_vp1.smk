@@ -80,6 +80,26 @@ rule generate_variation_info:
                     "--cores {threads} &> {log:q}")
 
 
+rule assess_co_occurrence:
+    input:
+        snakefile = os.path.join(workflow.current_basedir,"co_occurrance.smk"),
+        csv = rules.generate_consensus_sequences.output.csv,
+        variation_info = rules.generate_variation_info.output.json
+    output:
+        csv = os.path.join(config[KEY_TEMPDIR], "co_occurrance_counts.csv")
+    run:
+        sample = get_sample(config[KEY_BARCODES_CSV],params.barcode)
+        print(green(f"Gathering variation info for {sample} ({params.barcode})"))
+        shell("snakemake --nolock --snakefile {input.snakefile:q} "
+                    "--forceall "
+                    "--rerun-incomplete "
+                    "{config[log_string]} "
+                    "--configfile {input.yaml:q} "
+                    "--config barcode={params.barcode} outdir={params.outdir:q} tempdir={params.tempdir:q} "
+                    f"sample='{sample}' "
+                    "--cores {threads} &> {log:q}")
+
+
 rule gather_consensus_sequences:
     input:
         composition = rules.files.params.composition,
