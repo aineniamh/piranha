@@ -220,18 +220,25 @@ rule join_cns_ref:
         fasta = os.path.join(config[KEY_TEMPDIR],"reference_analysis","{reference}","ref_cns.fasta")
     run:
         with open(output[0],"w") as fw:
+            display_name = ""
+            ref_record = ""
             for record in SeqIO.parse(input.ref,KEY_FASTA):
-                display_name = ""
+                
                 for field in record.description.split(" "):
                     if field.startswith("display_name"):
                         display_name = field.split("=")[1]
+                ref_record = record
 
-                fw.write(f">{display_name} {record.description}\n{record.seq}\n")
             if "Sabin" in params.reference:
+                fw.write(f">{display_name} {ref_record.description}\n{ref_record.seq}\n")
+
                 for record in SeqIO.parse(input.medaka_cns,KEY_FASTA):
                     record_name = str(SAMPLE).replace(" ","_")
                     fw.write(f">{record_name}\n{record.seq}\n")
             else:
+                for record in SeqIO.parse(input.medaka_cns,KEY_FASTA):
+                    fw.write(f">Consensus_{display_name}\n{record.seq}\n")
+
                 for record in SeqIO.parse(input.cns_cns,KEY_FASTA):
                     record_name = str(SAMPLE).replace(" ","_")
                     fw.write(f">{record_name}\n{record.seq}\n")
@@ -280,18 +287,27 @@ rule gather_masked_variants:
 rule join_clean_cns_ref:
     input:
         ref=rules.files.params.ref,
-        cns=rules.curate_variants.output.fasta
+        cns=rules.curate_variants.output.fasta,
+        medaka_cns=rules.medaka_consensus.output.consensus
+    params:
+        reference = "{reference}"
     output:
         fasta = os.path.join(config[KEY_TEMPDIR],"reference_analysis","{reference}","ref_medaka_cns_clean.fasta")
     run:
         with open(output[0],"w") as fw:
+            display_name = ""
+            ref_record = ""
             for record in SeqIO.parse(input.ref,KEY_FASTA):
-                display_name = ""
+                ref_record = record
                 for field in record.description.split(" "):
                     if field.startswith("display_name"):
                         display_name = field.split("=")[1]
 
-                fw.write(f">{display_name} {record.description}\n{record.seq}\n")
+            if "Sabin" in params.reference:
+                fw.write(f">{display_name} {ref_record.description}\n{ref_record.seq}\n")
+            else:
+                for record in SeqIO.parse(input.medaka_cns,KEY_FASTA):
+                    fw.write(f">Consensus_{display_name} {record.description}\n{record.seq}\n")
             for record in SeqIO.parse(input.cns,KEY_FASTA):
                 record_name = SAMPLE.replace(" ","_")
                 fw.write(f">{record_name}\n{record.seq}\n")

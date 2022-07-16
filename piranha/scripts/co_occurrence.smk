@@ -38,15 +38,15 @@ rule get_co_occurrence:
         with open(input.csv,"r") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                if "Sabin" in row["reference"]:
-                    variants = row["variants"]
-                    ref_file = ""
-                    for ref_file in input.fasta:
-                        if row["reference"] in ref_file:
+                # if "Sabin" in row["reference"]:
+                variants = row["variants"]
+                ref_file = ""
+                for ref_file in input.fasta:
+                    if row["reference"] in ref_file:
 
-                            read_fasta_file = ref_file
-                    if variants:
-                        counter[row["reference"]] = get_combinations(variants,read_fasta_file,row["reference"],BARCODE,10)
+                        read_fasta_file = ref_file
+                if variants:
+                    counter[row["reference"]] = get_combinations(variants,read_fasta_file,row["reference"],BARCODE,10)
         
         with open(output.json, "w") as fw:
             fw.write(json.dumps(counter))
